@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Deep Explorer</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        deep: '#0a0a0a',
+                        neon: {
+                            cyan: '#00f3ff',
+                            purple: '#b23aff',
+                            yellow: '#facc15'
+                        }
+                    },
+                    backgroundImage: {
+                        'neon-gradient': 'linear-gradient(to right, #00f3ff, #b23aff)',
+                    },
+                    boxShadow: {
+                        'neon-cyan': '0 0 10px rgba(0, 243, 255, 0.5)',
+                        'neon-purple': '0 0 10px rgba(178, 58, 255, 0.5)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- GSAP & ScrollTrigger -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <style>
+        body {
+            background-color: #0a0a0a;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            will-change: transform, box-shadow;
+        }
+
+        .text-glow {
+            text-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Description Scrollbar - Thinner and more visible for dragging */
+        .desc-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .desc-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .desc-scroll::-webkit-scrollbar-thumb {
+            background: rgba(0, 243, 255, 0.3);
+            border-radius: 3px;
+        }
+
+        .desc-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 243, 255, 0.6);
+        }
+
+        /* Form Elements */
+        select {
+            background-color: #111;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        select:focus {
+            border-color: #00f3ff;
+        }
+
+        /* Favorite Button Transition */
+        .fav-btn i {
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .fav-btn:active i {
+            transform: scale(0.8);
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 relative">
+
+    <!-- Background Elements -->
+    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-900/20 rounded-full blur-[120px]"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-900/20 rounded-full blur-[120px]"></div>
+    </div>
+
+    <!-- Login Overlay -->
+    <div id="loginOverlay"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a] bg-opacity-95 backdrop-blur-sm transition-opacity duration-500">
+        <div
+            class="glass-card max-w-md w-full mx-4 p-8 rounded-2xl border border-white/10 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-neon-gradient"></div>
+
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold mb-2">
+                    <span class="text-transparent bg-clip-text bg-neon-gradient text-glow">YouTube</span>
+                    <span class="text-white">API Login</span>
+                </h1>
+                <p class="text-gray-400 text-sm">본인의 YouTube Data API v3 키를 입력해주세요.</p>
+            </div>
+
+            <div class="space-y-4">
+                <div class="relative">
+                    <i data-lucide="key" class="absolute left-3 top-3 w-5 h-5 text-gray-500"></i>
+                    <input type="text" id="apiKeyInput" placeholder="API Key 입력"
+                        class="w-full bg-[#111] border border-white/10 rounded-lg py-3 pl-10 pr-4 text-white focus:outline-none focus:border-cyan-400 transition"
+                        onkeypress="if(event.key === 'Enter') validateLogin()">
+                </div>
+                <p id="loginError" class="text-red-500 text-xs h-4 text-center hidden">유효하지 않은 API 키입니다.</p>
+                <button onclick="validateLogin()"
+                    class="w-full bg-neon-gradient text-white font-bold py-3 rounded-lg hover:opacity-90 transition transform active:scale-95 shadow-lg shadow-cyan-500/20">
+                    로그인
+                </button>
+            </div>
+
+            <div class="mt-6 text-center">
+                <a href="https://console.cloud.google.com/apis/credentials" target="_blank"
+                    class="text-xs text-gray-500 hover:text-cyan-400 underline transition">
+                    API 키는 어디서 발급받나요?
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Content (Wrapped) -->
+    <div id="appContent" class="hidden w-full flex-col items-center">
+        <!-- Header / Hero -->
+        <div id="heroSection" class="text-center mb-10 w-full max-w-4xl space-y-4 opacity-0 relative">
+            <button onclick="logout()"
+                class="absolute top-0 right-0 text-xs text-gray-500 hover:text-red-400 transition flex items-center gap-1">
+                <i data-lucide="log-out" class="w-3 h-3"></i> API 키 변경
+            </button>
+            <h1 class="text-5xl md:text-6xl font-bold tracking-tight mb-2 pt-6">
+                <span class="text-transparent bg-clip-text bg-neon-gradient text-glow">YouTube</span>
+                <span class="text-white">Deep Explorer</span>
+            </h1>
+            <p class="text-gray-400 text-lg">Detailed analytics & insights powered by Deep Search Logic</p>
+        </div>
+
+        <!-- Search Section -->
+        <div id="searchSection" class="w-full max-w-5xl mb-10 relative z-10 opacity-0 flex flex-col gap-6">
+            <!-- Search Input -->
+            <div class="relative group w-full max-w-3xl mx-auto">
+                <div
+                    class="absolute -inset-1 bg-neon-gradient rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200">
+                </div>
+                <div class="relative flex items-center bg-[#111] rounded-xl p-2 border border-white/10">
+                    <i data-lucide="search" class="w-6 h-6 text-gray-400 ml-3"></i>
+                    <input type="text" id="searchInput" placeholder="동영상을 검색하세요..."
+                        class="w-full bg-transparent border-none focus:ring-0 text-white placeholder-gray-500 text-lg px-4 py-2"
+                        onkeypress="if(event.key === 'Enter') handleSearch()">
+                    <button onclick="handleSearch()"
+                        class="bg-neon-gradient text-white font-semibold py-2 px-6 rounded-lg hover:opacity-90 transition transform active:scale-95 shadow-[0_0_15px_rgba(0,243,255,0.3)]">
+                        검색
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filter Bar -->
+            <div class="glass-card p-4 rounded-xl flex flex-wrap items-center justify-between gap-4 w-full">
+                <div class="flex flex-wrap gap-4 items-center">
+                    <!-- Date Filter -->
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs text-gray-500 font-mono">업로드 날짜</label>
+                        <select id="dateFilter" onchange="handleSearch()">
+                            <option value="any">전체 날짜</option>
+                            <option value="month1">최근 1개월</option>
+                            <option value="month2">최근 2개월</option>
+                            <option value="month6">최근 6개월</option>
+                            <option value="year1">최근 1년</option>
+                        </select>
+                    </div>
+
+                    <!-- Duration Filter -->
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs text-gray-500 font-mono">영상 길이</label>
+                        <select id="durationFilter" onchange="applyClientFilters()">
+                            <option value="any">전체 길이</option>
+                            <option value="short">쇼츠 (1분 미만)</option>
+                            <option value="long">일반 (1분 이상)</option>
+                        </select>
+                    </div>
+
+                    <!-- Ratio Filter -->
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs text-gray-500 font-mono">성과 지표</label>
+                        <select id="ratioFilter" onchange="applyClientFilters()">
+                            <option value="any">모든 성과</option>
+                            <option value="1">1단계 (< 0.5배)</option>
+                            <option value="2">2단계 (0.5 - 0.9배)</option>
+                            <option value="3">3단계 (0.9 - 1.2배)</option>
+                            <option value="4">4단계 (1.2 - 3.0배)</option>
+                            <option value="5">5단계 (> 3.0배 대박)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- View Toggle & Favorites -->
+                <div class="flex flex-wrap gap-4 items-center">
+                    <!-- Favorites Toggle -->
+                    <button onclick="toggleFavoritesView()" id="btnFavView"
+                        class="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 hover:bg-white/10 transition text-gray-400">
+                        <i data-lucide="star" class="w-5 h-5"></i>
+                        <span>즐겨찾기</span>
+                    </button>
+
+                    <!-- View Switcher -->
+                    <div class="flex items-center gap-2 bg-black/50 p-1 rounded-lg border border-white/10">
+                        <button onclick="toggleView('grid')" id="btnGrid"
+                            class="p-2 rounded hover:bg-white/10 text-cyan-400 transition">
+                            <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="toggleView('table')" id="btnTable"
+                            class="p-2 rounded hover:bg-white/10 text-gray-400 transition">
+                            <i data-lucide="list" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="loadingState" class="hidden w-full max-w-7xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- Skeleton Loaders -->
+            ${Array(6).fill('').map(() => `
+            <div class="glass-card rounded-2xl p-4 h-[400px] animate-pulse">
+                <div class="w-full h-48 bg-white/5 rounded-xl mb-4"></div>
+                <div class="h-6 bg-white/5 rounded w-3/4 mb-3"></div>
+                <div class="h-4 bg-white/5 rounded w-1/2 mb-6"></div>
+                <div class="flex space-x-3 mb-4">
+                    <div class="w-10 h-10 bg-white/5 rounded-full"></div>
+                    <div class="flex-1 space-y-2 py-1">
+                        <div class="h-4 bg-white/5 rounded w-2/3"></div>
+                    </div>
+                </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Grid Container -->
+        <div id="gridContainer" class="w-full max-w-7xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
+        </div>
+
+        <!-- Table Container -->
+        <div id="tableContainer" class="hidden w-full max-w-7xl pb-20 overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-gray-400 border-b border-white/10 relative">
+                        <th class="p-4 font-normal text-xs w-10 text-center"><i data-lucide="star"
+                                class="w-4 h-4 text-gray-500"></i></th>
+                        <th class="p-4 font-normal text-xs">동영상</th>
+                        <th class="p-4 font-normal text-xs">길이 • 날짜</th>
+                        <th class="p-4 font-normal text-xs text-right">조회수</th>
+                        <th class="p-4 font-normal text-xs text-center">성과</th>
+                        <th class="p-4 font-normal text-xs text-right">반응</th>
+                        <th class="p-4 font-normal text-xs">설명</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Rows injected here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden flex flex-col items-center justify-center text-center py-20">
+            <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
+                <i data-lucide="search-x" class="w-12 h-12 text-gray-500"></i>
+            </div>
+            <h3 class="text-2xl font-semibold text-gray-300 mb-2">결과가 없습니다</h3>
+            <p class="text-gray-500">필터 검색어를 변경하거나 즐겨찾기를 추가해보세요</p>
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // Init Plugins
+        gsap.registerPlugin(ScrollTrigger);
+        lucide.createIcons();
+
+        // Constants
+        const BASE_URL = 'https://www.googleapis.com/youtube/v3';
+
+        // Global State
+        let USER_API_KEY = '';
+        let rawSearchResults = []; // Stores current search API data
+        let favorites = []; // Stores favorite video objects
+        let currentView = 'grid'; // 'grid' | 'table'
+        let isFavoritesView = false; // Is showing favorites only?
+
+        // Initial Load & Auth Check
+        window.addEventListener('load', () => {
+            loadFavorites();
+            checkAuth();
+        });
+
+        // Auth Logic
+        async function checkAuth() {
+            const storedKey = localStorage.getItem('yt_api_key');
+            if (storedKey) {
+                // Try to validate silently or just assume valid for speed (and fail on search)
+                // For better UX, let's just use it. If it fails later, we can prompt.
+                USER_API_KEY = storedKey;
+                unlockApp();
+            }
+        }
+
+        async function validateLogin() {
+            const inputKey = document.getElementById('apiKeyInput').value.trim();
+            const errorMsg = document.getElementById('loginError');
+
+            if (!inputKey) return;
+
+            // Simple validation test: search for anything with maxResults=1
+            try {
+                const response = await fetch(`${BASE_URL}/search?part=snippet&q=test&maxResults=1&key=${inputKey}`);
+                if (!response.ok) throw new Error('Invalid Key');
+
+                // Valid!
+                USER_API_KEY = inputKey;
+                localStorage.setItem('yt_api_key', inputKey);
+                errorMsg.classList.add('hidden');
+                unlockApp();
+
+            } catch (error) {
+                console.warn("Login failed", error);
+                errorMsg.classList.remove('hidden');
+                gsap.from("#loginOverlay .glass-card", { x: 10, duration: 0.1, yoyo: true, repeat: 5 });
+            }
+        }
+
+        function unlockApp() {
+            const overlay = document.getElementById('loginOverlay');
+            const content = document.getElementById('appContent');
+
+            gsap.to(overlay, {
+                opacity: 0, duration: 0.5, onComplete: () => {
+                    overlay.style.display = 'none';
+                    content.classList.remove('hidden');
+                    content.classList.add('flex');
+
+                    // Run App Iteractions
+                    runAppAnimations();
+                }
+            });
+        }
+
+        function logout() {
+            localStorage.removeItem('yt_api_key');
+            location.reload();
+        }
+
+        function runAppAnimations() {
+            const tl = gsap.timeline();
+            tl.to("#heroSection", {
+                duration: 1, y: 0, opacity: 1, ease: "power3.out", startAt: { y: -50 }
+            })
+                .to("#searchSection", {
+                    duration: 0.8, y: 0, opacity: 1, ease: "back.out(1.7)", startAt: { y: -30 }
+                }, "-=0.5");
+        }
+
+        // Favorites Storage Logic
+        function loadFavorites() {
+            const stored = localStorage.getItem('yt_favorites');
+            if (stored) {
+                try {
+                    favorites = JSON.parse(stored);
+                } catch (e) {
+                    console.error("Failed to parse favorites", e);
+                    favorites = [];
+                }
+            }
+        }
+
+        function saveFavorites() {
+            localStorage.setItem('yt_favorites', JSON.stringify(favorites));
+        }
+
+        function toggleFavorite(videoId) {
+            // Find video in current results OR existing favorites
+            let video = rawSearchResults.find(v => v.id === videoId);
+            if (!video) {
+                // If not in search results, maybe we are removing from favorites view
+                video = favorites.find(v => v.id === videoId);
+            }
+
+            if (!video) return; // Should not happen
+
+            const index = favorites.findIndex(v => v.id === videoId);
+            if (index === -1) {
+                favorites.push(video);
+            } else {
+                favorites.splice(index, 1);
+            }
+            saveFavorites();
+
+            // Re-render current view to update star icons
+            applyClientFilters();
+        }
+
+        function isFavorite(videoId) {
+            return favorites.some(v => v.id === videoId);
+        }
+
+        function toggleFavoritesView() {
+            const btn = document.getElementById('btnFavView');
+            isFavoritesView = !isFavoritesView;
+
+            if (isFavoritesView) {
+                btn.classList.add('bg-neon-yellow', 'text-yellow-400', 'border-yellow-400/50');
+                btn.classList.remove('text-gray-400', 'hover:bg-white/10');
+            } else {
+                btn.classList.remove('bg-neon-yellow', 'text-yellow-400', 'border-yellow-400/50');
+                btn.classList.add('text-gray-400', 'hover:bg-white/10');
+            }
+            applyClientFilters();
+        }
+
+        // Helpers (Formatting)
+        const formatCount = (num) => {
+            if (!num) return '0';
+            num = parseInt(num);
+            if (num >= 100000000) return (num / 100000000).toFixed(1) + '억';
+            if (num >= 10000) return (num / 10000).toFixed(1) + '만';
+            return num.toLocaleString();
+        };
+
+        const formatDate = (isoString) => {
+            const date = new Date(isoString);
+            return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+        };
+
+        const formatRelativeTime = (isoString) => {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays > 365) return Math.floor(diffDays / 365) + '년 전';
+            if (diffDays > 30) return Math.floor(diffDays / 30) + '개월 전';
+            return diffDays + '일 전';
+        };
+
+        const formatDurationStr = (seconds) => {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        };
+
+        // Date Calculation for API
+        const getPublishedAfter = (val) => {
+            if (val === 'any') return '';
+            const date = new Date();
+            if (val === 'month1') date.setMonth(date.getMonth() - 1);
+            if (val === 'month2') date.setMonth(date.getMonth() - 2);
+            if (val === 'month6') date.setMonth(date.getMonth() - 6);
+            if (val === 'year1') date.setFullYear(date.getFullYear() - 1);
+            return date.toISOString();
+        };
+
+        // ISO Duration Parser
+        const parseDuration = (isoDuration) => {
+            const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
+            const matches = isoDuration.match(regex);
+            if (!matches) return 0;
+            const hours = parseInt(matches[1] || 0);
+            const minutes = parseInt(matches[2] || 0);
+            const seconds = parseInt(matches[3] || 0);
+            return (hours * 3600) + (minutes * 60) + seconds;
+        };
+
+        // View Toggle Logic
+        function toggleView(mode) {
+            currentView = mode;
+            const btnGrid = document.getElementById('btnGrid');
+            const btnTable = document.getElementById('btnTable');
+            const gridContainer = document.getElementById('gridContainer');
+            const tableContainer = document.getElementById('tableContainer');
+
+            if (mode === 'grid') {
+                btnGrid.classList.replace('text-gray-400', 'text-cyan-400');
+                btnTable.classList.replace('text-cyan-400', 'text-gray-400');
+                gridContainer.classList.remove('hidden');
+                tableContainer.classList.add('hidden');
+            } else {
+                btnTable.classList.replace('text-gray-400', 'text-cyan-400');
+                btnGrid.classList.replace('text-cyan-400', 'text-gray-400');
+                tableContainer.classList.remove('hidden');
+                gridContainer.classList.add('hidden');
+            }
+            applyClientFilters(); // Re-render logic
+        }
+
+        // Main Search Function
+        async function handleSearch() {
+            // Check Auth First
+            if (!USER_API_KEY) {
+                alert("로그인이 필요합니다.");
+                location.reload();
+                return;
+            }
+
+            // Force search mode if input is used
+            if (isFavoritesView) toggleFavoritesView();
+
+            const query = document.getElementById('searchInput').value.trim();
+            const dateFilter = document.getElementById('dateFilter').value;
+            if (!query) return;
+
+            // UI Reset
+            const grid = document.getElementById('gridContainer');
+            const table = document.getElementById('tableBody');
+            const loading = document.getElementById('loadingState');
+            const empty = document.getElementById('emptyState');
+
+            grid.innerHTML = '';
+            table.innerHTML = '';
+            empty.classList.add('hidden');
+            loading.classList.remove('hidden');
+
+            try {
+                // Step 1: Search API
+                let url = `${BASE_URL}/search?part=snippet&maxResults=50&q=${encodeURIComponent(query)}&type=video&key=${USER_API_KEY}`;
+
+                const publishedAfter = getPublishedAfter(dateFilter);
+                if (publishedAfter) {
+                    url += `&publishedAfter=${publishedAfter}`;
+                }
+
+                console.log('Fetching Search Results...', url);
+                const searchResponse = await fetch(url);
+                if (!searchResponse.ok) throw new Error('Search API Failed');
+                const searchData = await searchResponse.json();
+
+                if (searchData.items.length === 0) {
+                    loading.classList.add('hidden');
+                    empty.classList.remove('hidden');
+                    return;
+                }
+
+                const videoIds = searchData.items.map(item => item.id.videoId).join(',');
+
+                // Step 2: Video Details
+                const videoResponse = await fetch(`${BASE_URL}/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${USER_API_KEY}`);
+                const videoData = await videoResponse.json();
+
+                // Extract Channel IDs
+                const channelIds = [...new Set(videoData.items.map(item => item.snippet.channelId))].join(',');
+
+                // Step 3: Channel Checks
+                const channelResponse = await fetch(`${BASE_URL}/channels?part=snippet,statistics&id=${channelIds}&key=${USER_API_KEY}`);
+                const channelData = await channelResponse.json();
+
+                const channelMap = {};
+                channelData.items.forEach(channel => {
+                    channelMap[channel.id] = {
+                        title: channel.snippet.title,
+                        thumbnail: channel.snippet.thumbnails.default.url,
+                        subscriberCount: parseInt(channel.statistics.subscriberCount)
+                    };
+                });
+
+                // Combine Data
+                rawSearchResults = videoData.items.map(video => {
+                    const ch = channelMap[video.snippet.channelId] || {};
+                    const viewCount = parseInt(video.statistics.viewCount || 0);
+                    const subCount = ch.subscriberCount || 1; // avoid divide by zero
+                    const ratio = viewCount / subCount;
+
+                    return {
+                        id: video.id,
+                        title: video.snippet.title,
+                        description: video.snippet.description,
+                        thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.medium.url,
+                        publishedAt: video.snippet.publishedAt,
+                        tags: video.snippet.tags || [],
+                        viewCount: viewCount,
+                        likeCount: parseInt(video.statistics.likeCount || 0),
+                        commentCount: parseInt(video.statistics.commentCount || 0),
+                        duration: parseDuration(video.contentDetails.duration),
+                        ratio: ratio,
+                        channel: {
+                            id: video.snippet.channelId,
+                            title: ch.title || video.snippet.channelTitle,
+                            thumbnail: ch.thumbnail,
+                            subscriberCount: subCount
+                        }
+                    };
+                });
+
+                applyClientFilters();
+
+            } catch (error) {
+                console.error('Error:', error);
+                if (error.message.includes('Search API Failed')) {
+                    alert('API 호출에 실패했습니다. 키를 확인해주세요.');
+                }
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        // Filter & Render Logic
+        function applyClientFilters() {
+            // 1. Choose Source
+            let sourceData = isFavoritesView ? favorites : rawSearchResults;
+
+            const durationFilter = document.getElementById('durationFilter').value;
+            const ratioFilter = document.getElementById('ratioFilter').value;
+
+            // 2. Apply Filters (Only if not in favorites mode, or apply filters to favorites too? - user likely wants to filter favorites too)
+            // Let's allow filtering on favorites too for consistency.
+            const filtered = sourceData.filter(video => {
+                // Duration Check
+                if (durationFilter === 'short' && video.duration >= 60) return false;
+                if (durationFilter === 'long' && video.duration < 60) return false;
+
+                // Ratio Check
+                if (ratioFilter !== 'any') {
+                    if (ratioFilter === '1' && video.ratio >= 0.5) return false;
+                    if (ratioFilter === '2' && (video.ratio < 0.5 || video.ratio >= 0.9)) return false;
+                    if (ratioFilter === '3' && (video.ratio < 0.9 || video.ratio >= 1.2)) return false;
+                    if (ratioFilter === '4' && (video.ratio < 1.2 || video.ratio >= 3.0)) return false;
+                    if (ratioFilter === '5' && video.ratio < 3.0) return false;
+                }
+                return true;
+            });
+
+            // 3. Render
+            const empty = document.getElementById('emptyState');
+            if (filtered.length === 0) {
+                empty.classList.remove('hidden');
+                document.getElementById('gridContainer').innerHTML = '';
+                document.getElementById('tableBody').innerHTML = '';
+            } else {
+                empty.classList.add('hidden');
+                renderResults(filtered);
+            }
+        }
+
+        function renderResults(results) {
+            if (currentView === 'grid') {
+                renderGrid(results);
+            } else {
+                renderTable(results);
+            }
+            lucide.createIcons();
+        }
+
+        function renderGrid(results) {
+            const container = document.getElementById('gridContainer');
+            container.innerHTML = results.map(video => {
+                const isFav = isFavorite(video.id);
+                return `
+                <div class="result-card glass-card rounded-2xl overflow-hidden flex flex-col group h-full opacity-0 transform translate-y-10 border border-white/5 hover:border-cyan-500/30">
+                    <!-- Thumbnail Area -->
+                    <div class="relative overflow-hidden aspect-video">
+                         <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" rel="noopener noreferrer" class="block w-full h-full cursor-pointer">
+                            <img src="${video.thumbnail}" alt="${video.title}" class="card-thumb w-full h-full object-cover transition-transform duration-500">
+                        </a>
+                        
+                        <!-- Duration Badge -->
+                        <div class="absolute bottom-2 right-2 bg-black/90 px-2 py-0.5 text-xs rounded text-white font-mono z-10 font-bold border border-white/10 pointer-events-none">
+                            ${formatDurationStr(video.duration)}
+                        </div>
+
+                        <!-- Favorite Button -->
+                        <button onclick="toggleFavorite('${video.id}')" class="fav-btn absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full z-20 backdrop-blur-sm border border-white/10 transition">
+                             <i data-lucide="star" class="w-5 h-5 ${isFav ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="p-4 flex flex-col flex-grow">
+                        <!-- Channel Header -->
+                        <div class="flex items-center space-x-3 mb-3">
+                            <img src="${video.channel.thumbnail}" alt="" class="w-8 h-8 rounded-full border border-white/20">
+                            <div class="overflow-hidden">
+                                <p class="text-xs text-gray-400 truncate">${video.channel.title}</p>
+                                <p class="text-[10px] text-gray-500">구독자 ${formatCount(video.channel.subscriberCount)}명</p>
+                            </div>
+                            <div class="ml-auto flex items-center bg-white/5 rounded px-2 py-0.5">
+                                <span class="text-[10px] ${getRatioColorText(video.ratio)} font-bold tracking-wider">
+                                    ${video.ratio.toFixed(1)}배
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Title (Linked) -->
+                         <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" rel="noopener noreferrer" class="group-hover:text-cyan-400 transition-colors">
+                            <h3 class="text-base font-semibold text-white leading-snug mb-2 line-clamp-2">
+                                ${video.title}
+                            </h3>
+                        </a>
+
+                        <!-- Description (Scrollable) -->
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-400 leading-relaxed bg-black/20 p-2 rounded max-h-[80px] overflow-y-auto desc-scroll">
+                                ${video.description || '설명이 없습니다.'}
+                            </p>
+                        </div>
+
+                        <!-- Stats Grid -->
+                        <div class="mt-auto grid grid-cols-2 gap-y-2 text-xs text-gray-400 border-t border-white/5 pt-3">
+                            <div class="flex items-center space-x-1.5">
+                                <i data-lucide="eye" class="w-3.5 h-3.5 text-cyan-400"></i>
+                                <span>${formatCount(video.viewCount)}</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5">
+                                <i data-lucide="calendar" class="w-3.5 h-3.5 text-gray-500"></i>
+                                <span>${formatDate(video.publishedAt)}</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5">
+                                <i data-lucide="thumbs-up" class="w-3.5 h-3.5 text-pink-500"></i>
+                                <span>${formatCount(video.likeCount)}</span>
+                            </div>
+                            <div class="flex items-center space-x-1.5">
+                                <i data-lucide="message-square" class="w-3.5 h-3.5 text-purple-500"></i>
+                                <span>${formatCount(video.commentCount)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            }).join('');
+
+            animateElements(".result-card", "#gridContainer");
+            attachHoverEffects();
+        }
+
+        function renderTable(results) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = results.map((video, idx) => {
+                const isFav = isFavorite(video.id);
+                return `
+                <tr class="result-row border-b border-white/5 hover:bg-white/5 transition opacity-0 transform translate-x-5">
+                     <td class="p-4 align-top text-center w-10">
+                        <button onclick="toggleFavorite('${video.id}')" class="fav-btn p-1 hover:bg-white/10 rounded transition">
+                             <i data-lucide="star" class="w-4 h-4 ${isFav ? 'fill-yellow-400 text-yellow-400' : 'text-gray-500'}"></i>
+                        </button>
+                    </td>
+                    <td class="p-4 align-top w-[30%]">
+                        <div class="flex gap-4">
+                            <div class="relative w-32 flex-shrink-0 group cursor-pointer">
+                                 <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" rel="noopener noreferrer">
+                                    <img src="${video.thumbnail}" class="w-full aspect-video object-cover rounded border border-white/10 group-hover:border-cyan-400/50 transition" />
+                                     <div class="absolute bottom-1 right-1 bg-black/90 px-1.5 text-[10px] rounded text-white font-mono pointer-events-none">
+                                        ${formatDurationStr(video.duration)}
+                                    </div>
+                                </a>
+                            </div>
+                            <div>
+                                <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank" rel="noopener noreferrer" class="text-sm font-semibold text-white line-clamp-2 mb-1 hover:text-cyan-400 cursor-pointer">
+                                    ${video.title}
+                                </a>
+                                <div class="text-xs text-gray-400">${video.channel.title}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="p-4 align-top text-xs text-gray-400 whitespace-nowrap">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-white font-mono">${formatDurationStr(video.duration)}</span>
+                            <span>${formatDate(video.publishedAt)}</span>
+                            <span class="text-[10px] text-gray-600">(${formatRelativeTime(video.publishedAt)})</span>
+                        </div>
+                    </td>
+                    <td class="p-4 align-top text-right text-sm font-mono text-cyan-100">
+                        ${formatCount(video.viewCount)}
+                    </td>
+                    <td class="p-4 align-top text-center">
+                        <div class="inline-flex flex-col items-center">
+                            <span class="px-2 py-0.5 rounded text-xs font-bold ${getRatioColor(video.ratio)}">
+                                ${video.ratio.toFixed(2)}배
+                            </span>
+                            <span class="text-[10px] text-gray-500 mt-1">구독자 ${formatCount(video.channel.subscriberCount)}</span>
+                        </div>
+                    </td>
+                    <td class="p-4 align-top text-right text-xs">
+                        <div class="flex flex-col gap-1 items-end">
+                            <span class="flex items-center gap-1 text-pink-200"><i data-lucide="thumbs-up" class="w-3 h-3"></i> ${formatCount(video.likeCount)}</span>
+                            <span class="flex items-center gap-1 text-purple-200"><i data-lucide="message-square" class="w-3 h-3"></i> ${formatCount(video.commentCount)}</span>
+                        </div>
+                    </td>
+                    <td class="p-4 align-top text-xs text-gray-500">
+                        <div class="w-[280px] max-h-[100px] overflow-y-auto desc-scroll pr-2 bg-black/20 rounded p-2">
+                            <p class="leading-relaxed whitespace-pre-wrap">${video.description || '설명이 없습니다.'}</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            }).join('');
+
+            animateElements(".result-row", "#tableContainer");
+        }
+
+        function getRatioColor(ratio) {
+            if (ratio > 3.0) return 'bg-purple-900/50 text-purple-200 border border-purple-500/30';
+            if (ratio > 1.2) return 'bg-cyan-900/50 text-cyan-200 border border-cyan-500/30';
+            if (ratio > 0.9) return 'bg-green-900/50 text-green-200 border border-green-500/30';
+            return 'bg-gray-800 text-gray-400 border border-white/10';
+        }
+
+        function getRatioColorText(ratio) {
+            if (ratio > 3.0) return 'text-purple-400';
+            if (ratio > 1.2) return 'text-cyan-400';
+            if (ratio > 0.9) return 'text-green-400';
+            return 'text-gray-500';
+        }
+
+        function animateElements(selector, trigger) {
+            // Kill existing triggers to prevent conflicts
+            ScrollTrigger.getAll().forEach(t => t.kill());
+
+            gsap.to(selector, {
+                duration: 0.5,
+                y: 0,
+                x: 0,
+                opacity: 1,
+                stagger: 0.03,
+                ease: "power2.out",
+                force3D: true,
+                scrollTrigger: {
+                    trigger: trigger,
+                    start: "top 90%",
+                }
+            });
+        }
+
+        function attachHoverEffects() {
+            const cards = document.querySelectorAll('.result-card');
+            cards.forEach(card => {
+                const thumb = card.querySelector('.card-thumb');
+                card.addEventListener('mouseenter', () => {
+                    gsap.to(card, { y: -5, borderColor: 'rgba(0, 243, 255, 0.4)', boxShadow: '0 10px 30px -10px rgba(0, 243, 255, 0.2)', duration: 0.3 });
+                    gsap.to(thumb, { scale: 1.1, duration: 0.5 });
+                });
+                card.addEventListener('mouseleave', () => {
+                    gsap.to(card, { y: 0, borderColor: 'rgba(255, 255, 255, 0.05)', boxShadow: 'none', duration: 0.3 });
+                    gsap.to(thumb, { scale: 1.0, duration: 0.5 });
+                });
+            });
+        }
+    </script>
+</body>
+
+</html>
